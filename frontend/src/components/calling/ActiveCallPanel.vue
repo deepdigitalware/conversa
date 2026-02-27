@@ -20,7 +20,15 @@ const displayName = computed(() => {
   if (store.isOutgoingCall) {
     return store.outgoingContactName || store.outgoingContactPhone || 'Unknown'
   }
-  return store.activeTransfer?.contact?.profile_name || store.activeTransfer?.caller_phone || 'Unknown'
+  if (store.activeTransfer) {
+    return store.activeTransfer.contact?.profile_name || store.activeTransfer.caller_phone || 'Unknown'
+  }
+  // Show first waiting transfer if not on call yet
+  if (store.waitingTransfers.length > 0) {
+    const t = store.waitingTransfers[0]
+    return t.contact?.profile_name || t.caller_phone || 'Unknown'
+  }
+  return 'Unknown'
 })
 
 const statusText = computed(() => {
@@ -32,10 +40,19 @@ const statusText = computed(() => {
       default: return ''
     }
   }
-  return t('callTransfers.callConnected')
+  if (store.isOnCall) {
+    return t('callTransfers.callConnected')
+  }
+  if (store.waitingTransfers.length > 0) {
+    return t('callTransfers.incomingTransfer')
+  }
+  return ''
 })
 
 const showPanel = computed(() => store.isOnCall || store.waitingTransfers.length > 0)
+
+// The first waiting transfer (for single-panel accept button)
+const firstWaiting = computed(() => store.waitingTransfers[0] ?? null)
 
 async function handleAccept(id: string) {
   acceptingId.value = id
@@ -56,82 +73,64 @@ async function handleAccept(id: string) {
   <Teleport to="body">
     <div
       v-if="showPanel"
-      class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 items-end"
+      class="fixed bottom-6 right-6 z-50 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl p-4 min-w-[260px]"
     >
-      <!-- Waiting incoming transfers — each as its own call card -->
-      <div
-        v-for="transfer in store.waitingTransfers.slice(0, 3)"
-        :key="transfer.id"
-        class="bg-zinc-900 border border-green-700/50 rounded-xl shadow-2xl p-4 min-w-[260px]"
-      >
-        <div class="flex items-center gap-3 mb-3">
-          <div class="w-8 h-8 rounded-full bg-green-600/20 flex items-center justify-center">
-            <PhoneIncoming class="h-4 w-4 text-green-400 animate-pulse" />
-          </div>
-          <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium text-zinc-100 truncate">
-              {{ transfer.contact?.profile_name || transfer.caller_phone }}
-            </p>
-            <p class="text-xs text-green-400">
-              {{ t('callTransfers.incomingTransfer') }}
-              <span v-if="transfer.team?.name" class="text-zinc-500"> · {{ transfer.team.name }}</span>
-            </p>
-          </div>
+      <!-- Caller info -->
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-8 h-8 rounded-full flex items-center justify-center"
+          :class="store.isOnCall ? 'bg-green-600/20' : 'bg-green-600/20'"
+        >
+          <PhoneIncoming v-if="!store.isOnCall && firstWaiting" class="h-4 w-4 text-green-400 animate-pulse" />
+          <Phone v-else class="h-4 w-4 text-green-400" />
         </div>
-
-        <div class="flex items-center justify-center gap-4">
-          <Button
-            size="sm"
-            class="h-10 w-10 rounded-full p-0 bg-green-600 hover:bg-green-500"
-            :disabled="acceptingId === transfer.id"
-            @click="handleAccept(transfer.id)"
-          >
-            <Phone class="h-4 w-4 text-white" />
-          </Button>
+        <div>
+          <p class="text-sm font-medium text-zinc-100">
+            {{ displayName }}
+          </p>
+          <p class="text-xs text-zinc-400">{{ statusText }}</p>
         </div>
       </div>
 
-      <!-- Active call panel -->
-      <div
-        v-if="store.isOnCall"
-        class="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl p-4 min-w-[260px]"
-      >
-        <div class="flex items-center gap-3 mb-3">
-          <div class="w-8 h-8 rounded-full bg-green-600/20 flex items-center justify-center">
-            <Phone class="h-4 w-4 text-green-400" />
-          </div>
-          <div>
-            <p class="text-sm font-medium text-zinc-100">
-              {{ displayName }}
-            </p>
-            <p class="text-xs text-zinc-400">{{ statusText }}</p>
-          </div>
-        </div>
+      <!-- Timer (only when on active call) -->
+      <div v-if="store.isOnCall" class="text-center mb-3">
+        <span class="text-2xl font-mono text-zinc-200">{{ formattedDuration }}</span>
+      </div>
 
-        <div class="text-center mb-3">
-          <span class="text-2xl font-mono text-zinc-200">{{ formattedDuration }}</span>
-        </div>
+      <!-- Call controls -->
+      <div class="flex items-center justify-center gap-3">
+        <!-- Mute (only when on call) -->
+        <Button
+          v-if="store.isOnCall"
+          size="sm"
+          variant="outline"
+          class="h-10 w-10 rounded-full p-0"
+          :class="store.isMuted ? 'bg-red-900/30 border-red-700' : 'border-zinc-600'"
+          @click="store.toggleMute()"
+        >
+          <MicOff v-if="store.isMuted" class="h-4 w-4 text-red-400" />
+          <Mic v-else class="h-4 w-4 text-zinc-300" />
+        </Button>
 
-        <div class="flex items-center justify-center gap-3">
-          <Button
-            size="sm"
-            variant="outline"
-            class="h-10 w-10 rounded-full p-0"
-            :class="store.isMuted ? 'bg-red-900/30 border-red-700' : 'border-zinc-600'"
-            @click="store.toggleMute()"
-          >
-            <MicOff v-if="store.isMuted" class="h-4 w-4 text-red-400" />
-            <Mic v-else class="h-4 w-4 text-zinc-300" />
-          </Button>
+        <!-- Accept incoming transfer (green) -->
+        <Button
+          v-if="firstWaiting"
+          size="sm"
+          class="h-10 w-10 rounded-full p-0 bg-green-600 hover:bg-green-500"
+          :disabled="acceptingId === firstWaiting.id"
+          @click="handleAccept(firstWaiting.id)"
+        >
+          <Phone class="h-4 w-4 text-white" />
+        </Button>
 
-          <Button
-            size="sm"
-            class="h-10 w-10 rounded-full p-0 bg-red-600 hover:bg-red-500"
-            @click="store.endCall()"
-          >
-            <PhoneOff class="h-4 w-4 text-white" />
-          </Button>
-        </div>
+        <!-- Hangup / Decline (red) -->
+        <Button
+          v-if="store.isOnCall"
+          size="sm"
+          class="h-10 w-10 rounded-full p-0 bg-red-600 hover:bg-red-500"
+          @click="store.endCall()"
+        >
+          <PhoneOff class="h-4 w-4 text-white" />
+        </Button>
       </div>
     </div>
   </Teleport>
