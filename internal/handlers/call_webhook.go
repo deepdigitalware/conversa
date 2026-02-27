@@ -171,25 +171,33 @@ func (a *App) processCallWebhook(phoneNumberID string, call interface{}) {
 			finalStatus = models.CallStatusMissed
 		}
 
-		a.DB.Model(callLog).Updates(map[string]any{
-			"status":          finalStatus,
-			"ended_at":        now,
-			"duration":        duration,
-			"disconnected_by": models.DisconnectedByClient,
-		})
+		updates := map[string]any{
+			"status":   finalStatus,
+			"ended_at": now,
+			"duration": duration,
+		}
+		// Only set disconnected_by if not already set (agent hangup sets it first)
+		if callLog.DisconnectedBy == "" {
+			updates["disconnected_by"] = models.DisconnectedByClient
+		}
+		a.DB.Model(callLog).Updates(updates)
 
 		// Notify CallManager to clean up
 		if a.CallManager != nil {
 			a.CallManager.EndCall(ce.ID)
 		}
 
+		disconnectedBy := string(callLog.DisconnectedBy)
+		if disconnectedBy == "" {
+			disconnectedBy = "client"
+		}
 		a.broadcastCallEvent(account.OrganizationID, websocket.TypeCallEnded, map[string]any{
 			"call_id":         ce.ID,
 			"contact_id":      contact.ID.String(),
 			"status":          string(finalStatus),
 			"duration":        duration,
 			"ended_at":        now.Format(time.RFC3339),
-			"disconnected_by": "client",
+			"disconnected_by": disconnectedBy,
 		})
 
 	case "missed", "unanswered":
@@ -283,12 +291,15 @@ func (a *App) handleOrphanedOutgoingCallEvent(phoneNumberID, callID, event strin
 		}
 
 		updates := map[string]any{
-			"status":          finalStatus,
-			"ended_at":        now,
-			"disconnected_by": models.DisconnectedByClient,
+			"status":   finalStatus,
+			"ended_at": now,
 		}
 		if duration > 0 {
 			updates["duration"] = duration
+		}
+		// Only set disconnected_by if not already set (agent hangup sets it first)
+		if callLog.DisconnectedBy == "" {
+			updates["disconnected_by"] = models.DisconnectedByClient
 		}
 		a.DB.Model(&callLog).Updates(updates)
 

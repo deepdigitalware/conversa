@@ -400,17 +400,24 @@ func (m *Manager) HandleOutgoingCallWebhook(callID, event, sdpAnswer string) {
 	case "ended", "terminated", "terminate":
 		// Calculate duration
 		var callLog models.CallLog
+		disconnectedBy := "client"
 		if err := m.db.Where("id = ?", session.CallLogID).First(&callLog).Error; err == nil {
 			duration := 0
 			if callLog.AnsweredAt != nil {
 				duration = int(now.Sub(*callLog.AnsweredAt).Seconds())
 			}
-			m.db.Model(&callLog).Updates(map[string]any{
-				"status":          models.CallStatusCompleted,
-				"ended_at":        now,
-				"duration":        duration,
-				"disconnected_by": models.DisconnectedByClient,
-			})
+			updates := map[string]any{
+				"status":   models.CallStatusCompleted,
+				"ended_at": now,
+				"duration": duration,
+			}
+			// Only set disconnected_by if not already set (agent hangup sets it first)
+			if callLog.DisconnectedBy == "" {
+				updates["disconnected_by"] = models.DisconnectedByClient
+			} else {
+				disconnectedBy = string(callLog.DisconnectedBy)
+			}
+			m.db.Model(&callLog).Updates(updates)
 		}
 
 		m.broadcastOutgoingEvent(session.OrganizationID, websocket.TypeOutgoingCallEnded, map[string]any{
@@ -419,7 +426,7 @@ func (m *Manager) HandleOutgoingCallWebhook(callID, event, sdpAnswer string) {
 			"contact_id":       session.ContactID.String(),
 			"contact_phone":    session.TargetPhone,
 			"ended_at":         now.Format(time.RFC3339),
-			"disconnected_by":  "client",
+			"disconnected_by":  disconnectedBy,
 		})
 
 		m.cleanupSession(callID)
