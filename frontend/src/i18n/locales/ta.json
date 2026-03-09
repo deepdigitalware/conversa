@@ -530,15 +530,15 @@
     "transferTimeout": "மாற்றுகை நேரம் முடிவு (வினாடிகள்)",
     "transferTimeoutDesc": "மாற்றப்பட்ட அழைப்பை ஏற்க முகவருக்காகக் காத்திருக்க வேண்டிய நேரம்",
     "callingSaved": "அழைப்பு அமைப்புகள் சேமிக்கப்பட்டன",
-    "holdMusic": "Hold Music",
-    "holdMusicDesc": "Audio played to callers while on hold during transfers",
-    "ringbackTone": "Ringback Tone",
-    "ringbackToneDesc": "Audio played to agents while waiting for the remote party to answer",
-    "uploadAudio": "Upload",
-    "currentFile": "Current file",
-    "noFileUploaded": "Using default",
-    "audioUploaded": "Audio file uploaded successfully",
-    "audioUploadFailed": "Failed to upload audio file"
+    "holdMusic": "காத்திருப்பு இசை",
+    "holdMusicDesc": "பரிமாற்றத்தின் போது காத்திருக்கும் அழைப்பாளர்களுக்கு ஒலிக்கும் ஆடியோ",
+    "ringbackTone": "ரிங்பேக் டோன்",
+    "ringbackToneDesc": "மறுமுனை பதிலளிக்க காத்திருக்கும் போது முகவர்களுக்கு ஒலிக்கும் ஆடியோ",
+    "uploadAudio": "பதிவேற்று",
+    "currentFile": "தற்போதைய கோப்பு",
+    "noFileUploaded": "இயல்புநிலை பயன்படுத்தப்படுகிறது",
+    "audioUploaded": "ஆடியோ கோப்பு வெற்றிகரமாக பதிவேற்றப்பட்டது",
+    "audioUploadFailed": "ஆடியோ கோப்பை பதிவேற்ற முடியவில்லை"
   },
   "users": {
     "title": "பயனர் மேலாண்மை",
@@ -1067,7 +1067,7 @@
     "timeout": "கோரிக்கை நேரம் முடிந்தது. மீண்டும் முயல்க."
   },
   "validation": {
-    "required": "இந்தப் புலம் கட்டாயமாகும்",
+    "required": "இந்தப் புலம் அவசியம்",
     "email": "சரியான மின்னஞ்சல் முகவரியை உள்ளிடுக",
     "phone": "சரியான தொலைபேசி எண்ணை உள்ளிடுக",
     "minLength": "குறைந்தது {min} எழுத்துகள் இருக்க வேண்டும்",
@@ -1219,7 +1219,7 @@
     "chartLine": "கோடு",
     "chartBar": "பார்",
     "chartPie": "பை",
-    "groupBy": "இதன்படி தொகு",
+    "groupBy": "குழுவாக்கு",
     "selectGroupBy": "தொகுக்க புலத்தைத் தேர்வுசெய்க",
     "noneTimeSeries": "எதுவுமில்லை (காலத் தொடர்)",
     "color": "நிறம்",
