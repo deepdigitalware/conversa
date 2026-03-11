@@ -264,6 +264,70 @@ const selectedTemplate = ref<Template | null>(null)
 const addRecipientsTab = ref('manual')
 
 // Media upload state
+const mediaFile = ref<File | null>(null)
+const mediaUploading = ref(false)
+const mediaUploadError = ref('')
+
+const templateNeedsMediaHeader = computed(() => {
+  const headerType = selectedTemplate.value?.header_type?.toUpperCase()
+  return headerType === 'IMAGE' || headerType === 'VIDEO' || headerType === 'DOCUMENT'
+})
+
+const templateHeaderType = computed(() => selectedTemplate.value?.header_type?.toUpperCase() || 'NONE')
+
+const acceptedMediaTypes = computed(() => {
+  switch (templateHeaderType.value) {
+    case 'IMAGE':
+      return 'image/jpeg,image/png'
+    case 'VIDEO':
+      return 'video/mp4'
+    case 'DOCUMENT':
+      return 'application/pdf'
+    default:
+      return '*/*'
+  }
+})
+
+const campaignHasMedia = computed(() => Boolean(selectedCampaign.value?.header_media_id))
+
+function handleMediaFileSelect(event: Event) {
+  const input = event.target as HTMLInputElement
+  mediaUploadError.value = ''
+  if (input.files && input.files[0]) {
+    mediaFile.value = input.files[0]
+  }
+}
+
+async function uploadCampaignHeaderMedia() {
+  if (!selectedCampaign.value) return
+  if (!mediaFile.value) {
+    toast.error(t('campaigns.selectMediaFile'))
+    return
+  }
+
+  mediaUploading.value = true
+  mediaUploadError.value = ''
+  try {
+    const response = await campaignsService.uploadMedia(selectedCampaign.value.id, mediaFile.value)
+    const campaign = response.data.data || response.data
+
+    selectedCampaign.value = {
+      ...selectedCampaign.value,
+      header_media_id: campaign.header_media_id,
+      header_media_filename: campaign.header_media_filename,
+      header_media_mime_type: campaign.header_media_mime_type,
+    }
+    mediaFile.value = null
+    toast.success(t('campaigns.mediaUploadedSuccess'))
+    await fetchCampaigns()
+  } catch (error: any) {
+    mediaUploadError.value = getErrorMessage(error, t('campaigns.mediaUploadFailed'))
+    toast.error(mediaUploadError.value)
+  } finally {
+    mediaUploading.value = false
+  }
+}
+
 // Computed: template parameter format hints
 const templateParamNames = computed(() => {
   if (!selectedTemplate.value) return []
@@ -870,6 +934,8 @@ async function openAddRecipientsDialog(campaign: Campaign) {
   csvFile.value = null
   csvValidation.value = null
   addRecipientsTab.value = 'manual'
+  mediaFile.value = null
+  mediaUploadError.value = ''
 
   // Fetch template details to get body_content
   if (campaign.template_id) {
@@ -1516,6 +1582,35 @@ async function addRecipientsFromCSV() {
             <span class="text-sm font-medium">{{ $t('campaigns.templatePreview') }}</span>
           </div>
           <p class="text-sm whitespace-pre-wrap" v-html="highlightTemplateParams(selectedTemplate.body_content)"></p>
+        </div>
+
+        <div v-if="templateNeedsMediaHeader" class="mb-4 p-3 bg-muted/50 rounded-lg border space-y-3">
+          <div class="flex items-center justify-between gap-2 flex-wrap">
+            <div>
+              <p class="text-sm font-medium">{{ $t('campaigns.headerMediaRequired') }}</p>
+              <p class="text-xs text-muted-foreground">
+                {{ $t('campaigns.headerMediaRequiredDesc', { type: templateHeaderType.toLowerCase() }) }}
+              </p>
+            </div>
+            <Badge v-if="campaignHasMedia" variant="outline" class="border-green-600 text-green-600">
+              <Check class="h-3 w-3 mr-1" />
+              {{ $t('campaigns.mediaAttached') }}
+            </Badge>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <Input type="file" :accept="acceptedMediaTypes" @change="handleMediaFileSelect" :disabled="mediaUploading" class="flex-1" />
+            <Button @click="uploadCampaignHeaderMedia" :disabled="mediaUploading || !mediaFile">
+              <Loader2 v-if="mediaUploading" class="h-4 w-4 mr-2 animate-spin" />
+              <Upload v-else class="h-4 w-4 mr-2" />
+              {{ $t('campaigns.uploadHeaderMedia') }}
+            </Button>
+          </div>
+
+          <p v-if="selectedCampaign?.header_media_filename" class="text-xs text-muted-foreground">
+            {{ $t('campaigns.currentMedia') }}: {{ selectedCampaign.header_media_filename }}
+          </p>
+          <p v-if="mediaUploadError" class="text-xs text-destructive">{{ mediaUploadError }}</p>
         </div>
 
         <Tabs v-model="addRecipientsTab" class="w-full">

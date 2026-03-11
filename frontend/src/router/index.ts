@@ -35,6 +35,24 @@ const router = createRouter({
       meta: { requiresAuth: false }
     },
     {
+      path: '/privacy-policy',
+      name: 'privacy-policy',
+      component: () => import('@/views/legal/PrivacyPolicyView.vue'),
+      meta: { requiresAuth: false }
+    },
+    {
+      path: '/terms-of-service',
+      name: 'terms-of-service',
+      component: () => import('@/views/legal/TermsOfServiceView.vue'),
+      meta: { requiresAuth: false }
+    },
+    {
+      path: '/user-data-deletion',
+      name: 'user-data-deletion',
+      component: () => import('@/views/legal/UserDataDeletionView.vue'),
+      meta: { requiresAuth: false }
+    },
+    {
       path: '/',
       component: () => import('@/components/layout/AppLayout.vue'),
       meta: { requiresAuth: true },

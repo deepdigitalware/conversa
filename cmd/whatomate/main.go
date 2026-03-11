@@ -45,7 +45,7 @@ func main() {
 	case "worker":
 		runWorker(os.Args[2:])
 	case "version":
-		fmt.Printf("Whatomate %s (built %s)\n", Version, BuildTime)
+		fmt.Printf("Conversa %s (built %s)\n", Version, BuildTime)
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -56,7 +56,7 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println(`Whatomate - WhatsApp Business API Platform
+	fmt.Println(`Conversa - WhatsApp Business API Platform
 
 Usage:
   whatomate <command> [options]
@@ -109,7 +109,7 @@ func runServer(args []string) {
 		DefaultFields:   []any{"app", "whatomate"},
 	})
 
-	lo.Info("Starting Whatomate server...", "version", Version)
+	lo.Info("Starting Conversa server...", "version", Version)
 
 	// Load configuration
 	cfg, err := config.Load(*configPath)
@@ -249,7 +249,7 @@ func runServer(args []string) {
 		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
 		MaxRequestBodySize: 15 * 1024 * 1024,
-		Name:         "Whatomate",
+		Name:         "Conversa",
 	}
 
 	// Start server in goroutine
@@ -349,7 +349,7 @@ func runWorker(args []string) {
 		DefaultFields:   []any{"app", "whatomate-worker"},
 	})
 
-	lo.Info("Starting Whatomate worker...", "version", Version)
+	lo.Info("Starting Conversa worker...", "version", Version)
 
 	// Load configuration
 	cfg, err := config.Load(*configPath)
@@ -621,6 +621,7 @@ func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePa
 	g.POST("/api/templates/sync", app.SyncTemplates)
 	g.POST("/api/templates/{id}/publish", app.SubmitTemplate)
 	g.POST("/api/templates/upload-media", app.UploadTemplateMedia)
+	g.POST("/api/templates/upload", app.UploadTemplateMedia)
 
 	// WhatsApp Flows
 	g.GET("/api/flows", app.ListFlows)

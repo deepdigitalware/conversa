@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -26,6 +26,12 @@ const email = ref('')
 const password = ref('')
 const isLoading = ref(false)
 const ssoProviders = ref<SSOProvider[]>([])
+const logoLoadFailed = ref(false)
+
+const customLogoSrc = computed(() => {
+  const basePath = ((window as any).__BASE_PATH__ ?? '').replace(/\/$/, '')
+  return basePath ? `${basePath}/branding/logo.svg` : '/branding/logo.svg'
+})
 
 // SSO provider icons (using simple SVG paths)
 const providerIcons: Record<string, string> = {
@@ -89,6 +95,10 @@ const initiateSSO = (provider: string) => {
   const basePath = ((window as any).__BASE_PATH__ ?? '').replace(/\/$/, '')
   window.location.href = `${basePath}/api/auth/sso/${provider}/init`
 }
+
+const handleLogoError = () => {
+  logoLoadFailed.value = true
+}
 </script>
 
 <template>
@@ -96,7 +106,14 @@ const initiateSSO = (provider: string) => {
     <div class="w-full max-w-md rounded-2xl border border-white/[0.08] bg-white/[0.02] backdrop-blur light:bg-white light:border-gray-200 light:shadow-xl">
       <div class="p-8 space-y-1 text-center">
         <div class="flex justify-center mb-4">
-          <div class="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <img
+            v-if="!logoLoadFailed"
+            :src="customLogoSrc"
+            alt="Conversa logo"
+            class="h-12 w-12 rounded-xl object-contain"
+            @error="handleLogoError"
+          />
+          <div v-else class="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
             <MessageSquare class="h-7 w-7 text-white" />
           </div>
         </div>
@@ -167,6 +184,17 @@ const initiateSSO = (provider: string) => {
           <RouterLink to="/register" class="text-emerald-400 light:text-emerald-600 hover:underline">
             {{ $t('auth.signUp') }}
           </RouterLink>
+        </p>
+        <p class="mt-3 text-xs text-center text-white/40 light:text-gray-500">
+          Powered by
+          <a
+            href="https://wa.me/917003614633"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="ml-1 no-underline hover:font-bold"
+          >
+            Deepverse
+          </a>
         </p>
       </div>
     </div>

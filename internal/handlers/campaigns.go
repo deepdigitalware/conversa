@@ -58,6 +58,38 @@ type RecipientRequest struct {
 	TemplateParams map[string]interface{} `json:"template_params"`
 }
 
+// resolveCampaignTemplate resolves a template identifier that may be:
+// 1) local template UUID
+// 2) Meta template ID
+// 3) template name
+// 4) template display name
+func (a *App) resolveCampaignTemplate(orgID uuid.UUID, identifier string) (*models.Template, error) {
+	identifier = strings.TrimSpace(identifier)
+	if identifier == "" {
+		return nil, fmt.Errorf("empty template identifier")
+	}
+
+	// Fast path: local UUID.
+	if parsed, err := uuid.Parse(identifier); err == nil {
+		tpl := models.Template{}
+		if err := a.DB.Where("id = ? AND organization_id = ?", parsed, orgID).First(&tpl).Error; err == nil {
+			return &tpl, nil
+		}
+	}
+
+	// Compatibility path: allow resolving by Meta ID, name, or display name.
+	tpl := models.Template{}
+	err := a.DB.Where("organization_id = ?", orgID).
+		Where("meta_template_id = ? OR name = ? OR display_name = ?", identifier, identifier, identifier).
+		Order("updated_at DESC").
+		First(&tpl).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &tpl, nil
+}
+
 // ListCampaigns implements campaign listing
 func (a *App) ListCampaigns(r *fastglue.Request) error {
 	orgID, err := a.getOrgID(r)
@@ -152,15 +184,10 @@ func (a *App) CreateCampaign(r *fastglue.Request) error {
 		return nil
 	}
 
-	// Validate template exists
-	templateID, err := uuid.Parse(req.TemplateID)
+	// Resolve template using UUID, Meta template ID, name, or display name.
+	template, err := a.resolveCampaignTemplate(orgID, req.TemplateID)
 	if err != nil {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid template ID", nil, "")
-	}
-
-	template, err := findByIDAndOrg[models.Template](a.DB, r, templateID, orgID, "Template")
-	if err != nil {
-		return nil
 	}
 
 	// Validate WhatsApp account exists
@@ -172,7 +199,7 @@ func (a *App) CreateCampaign(r *fastglue.Request) error {
 		OrganizationID:  orgID,
 		WhatsAppAccount: req.WhatsAppAccount,
 		Name:            req.Name,
-		TemplateID:      templateID,
+		TemplateID:      template.ID,
 		HeaderMediaID:  req.HeaderMediaID,
 		Status:          models.CampaignStatusDraft,
 		ScheduledAt:     req.ScheduledAt,
@@ -285,11 +312,11 @@ func (a *App) UpdateCampaign(r *fastglue.Request) error {
 	}
 
 	if req.TemplateID != "" {
-		templateID, err := uuid.Parse(req.TemplateID)
+		template, err := a.resolveCampaignTemplate(orgID, req.TemplateID)
 		if err != nil {
 			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid template ID", nil, "")
 		}
-		updates["template_id"] = templateID
+		updates["template_id"] = template.ID
 	}
 
 	if req.WhatsAppAccount != "" {
