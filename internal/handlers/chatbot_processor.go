@@ -344,7 +344,7 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 		// 1. Call JMJ Backend to initiate login
 		// Use the backend URL (assuming api.jaimatajijewellers.com or local ip)
 		// For now, I'll use a configurable or default URL.
-		backendURL := "https://api.jaimatajijewellers.com/api/whatsapp-support/auth/initiate/"
+		backendURL := "https://api.jaimatajijewellers.com/api/v1/whatsapp-support/auth/initiate/"
 		
 		// Prepare request body
 		// Extract phone number (remove +)
