@@ -282,17 +282,23 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 	
 	// --- WhatsApp Login Bridge Logic ---
 	// Moved here to run even if chatbot settings are missing or disabled.
-	if strings.Contains(messageText, "Help me login to Jai Mataji Jewellers!") {
-		a.Log.Info("Intercepted WhatsApp login request", "from", msg.From)
+	cleanMsg := strings.ToLower(strings.TrimSpace(messageText))
+	if strings.Contains(cleanMsg, "help me login to jai mataji jewellers") {
+		a.Log.Info("Intercepted WhatsApp login request", "from", msg.From, "original_text", messageText)
 		
-		// Use a dedicated client to bypass SSRFSafeDialer restrictions for local/internal backend
+		// Use the internal backend URL (localhost:7777) to avoid loopback/SSL issues on the server
 		client := &http.Client{Timeout: 15 * time.Second}
-		backendURL := "https://api.jaimatajijewellers.com/api/v1/whatsapp-support/auth/initiate/"
+		backendURL := "http://127.0.0.1:7777/api/v1/whatsapp-support/auth/initiate/"
 		
 		// Prepare request body
 		phone := strings.TrimPrefix(msg.From, "+")
+		// Safely extract last 10 digits
+		if len(phone) > 10 {
+			phone = phone[len(phone)-10:]
+		}
+		
 		reqData := map[string]interface{}{
-			"phone_number": phone[len(phone)-10:], // last 10 digits
+			"phone_number": phone,
 			"country_code": "+91",
 			"skip_send":    true,
 		}
@@ -303,24 +309,35 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 		
 		resp, err := client.Do(req)
 		if err != nil {
-			a.Log.Error("Failed to call JMJ backend for login initiation", "error", err)
+			a.Log.Error("Failed to call JMJ backend for login initiation", "error", err, "url", backendURL)
 		} else {
 			defer resp.Body.Close()
+			body, _ := io.ReadAll(resp.Body)
+			a.Log.Info("JMJ Backend response", "status", resp.Status, "body", string(body))
+			
 			if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
 				var result map[string]interface{}
-				if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
+				if err := json.Unmarshal(body, &result); err == nil {
 					loginURL, _ := result["login_url"].(string)
+					// Handle alternate key name just in case
+					if loginURL == "" {
+						loginURL, _ = result["url"].(string)
+					}
+					
 					if loginURL != "" {
 						reply := fmt.Sprintf("Click the link below to login to Jai Mataji Jewellers:\n\n%s\n\nThis link will expire in 5 minutes.", loginURL)
 						if err := a.sendAndSaveTextMessage(account, contact, reply); err != nil {
 							a.Log.Error("Failed to send login link reply", "error", err)
+						} else {
+							a.Log.Info("Sent login link successfully", "to", msg.From)
 						}
-						// Note: Session check comes after, so we just log to DB message table (already done above)
 						return // Stop further processing for this message
+					} else {
+						a.Log.Error("Login URL not found in backend response", "body", string(body))
 					}
 				}
 			} else {
-				a.Log.Error("Backend returned error for login initiation", "status", resp.Status)
+				a.Log.Error("Backend returned error for login initiation", "status", resp.Status, "body", string(body))
 			}
 		}
 	}
