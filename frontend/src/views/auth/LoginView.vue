@@ -185,17 +185,6 @@ const handleLogoError = () => {
             {{ $t('auth.signUp') }}
           </RouterLink>
         </p>
-        <p class="mt-3 text-xs text-center text-white/40 light:text-gray-500">
-          Powered by
-          <a
-            href="https://wa.me/917003614633"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="ml-1 no-underline hover:font-bold"
-          >
-            Deepverse
-          </a>
-        </p>
       </div>
     </div>
   </div>
