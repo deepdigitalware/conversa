@@ -279,6 +279,52 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 		replyToWAMID = msg.Context.ID
 	}
 	a.saveIncomingMessage(account, contact, msg.ID, messageType, messageText, mediaInfo, replyToWAMID)
+	
+	// --- WhatsApp Login Bridge Logic ---
+	// Moved here to run even if chatbot settings are missing or disabled.
+	if strings.Contains(messageText, "Help me login to Jai Mataji Jewellers!") {
+		a.Log.Info("Intercepted WhatsApp login request", "from", msg.From)
+		
+		// Use a dedicated client to bypass SSRFSafeDialer restrictions for local/internal backend
+		client := &http.Client{Timeout: 15 * time.Second}
+		backendURL := "https://api.jaimatajijewellers.com/api/v1/whatsapp-support/auth/initiate/"
+		
+		// Prepare request body
+		phone := strings.TrimPrefix(msg.From, "+")
+		reqData := map[string]interface{}{
+			"phone_number": phone[len(phone)-10:], // last 10 digits
+			"country_code": "+91",
+			"skip_send":    true,
+		}
+		
+		reqJSON, _ := json.Marshal(reqData)
+		req, _ := http.NewRequest("POST", backendURL, bytes.NewBuffer(reqJSON))
+		req.Header.Set("Content-Type", "application/json")
+		
+		resp, err := client.Do(req)
+		if err != nil {
+			a.Log.Error("Failed to call JMJ backend for login initiation", "error", err)
+		} else {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
+				var result map[string]interface{}
+				if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
+					loginURL, _ := result["login_url"].(string)
+					if loginURL != "" {
+						reply := fmt.Sprintf("Click the link below to login to Jai Mataji Jewellers:\n\n%s\n\nThis link will expire in 5 minutes.", loginURL)
+						if err := a.sendAndSaveTextMessage(account, contact, reply); err != nil {
+							a.Log.Error("Failed to send login link reply", "error", err)
+						}
+						// Note: Session check comes after, so we just log to DB message table (already done above)
+						return // Stop further processing for this message
+					}
+				}
+			} else {
+				a.Log.Error("Backend returned error for login initiation", "status", resp.Status)
+			}
+		}
+	}
+	// --- End WhatsApp Login Bridge Logic ---
 
 	// Clear chatbot tracking since client has replied
 	a.ClearContactChatbotTracking(contact.ID)
@@ -337,52 +383,6 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 	// Log incoming message to session
 	a.logSessionMessage(session.ID, models.DirectionIncoming, messageText, "keyword_check")
 
-	// --- WhatsApp Login Bridge Logic ---
-	if strings.Contains(messageText, "Help me login to Jai Mataji Jewellers!") {
-		a.Log.Info("Intercepted WhatsApp login request", "from", msg.From)
-		
-		// 1. Call JMJ Backend to initiate login
-		// Use the backend URL (assuming api.jaimatajijewellers.com or local ip)
-		// For now, I'll use a configurable or default URL.
-		backendURL := "https://api.jaimatajijewellers.com/api/v1/whatsapp-support/auth/initiate/"
-		
-		// Prepare request body
-		// Extract phone number (remove +)
-		phone := strings.TrimPrefix(msg.From, "+")
-		reqData := map[string]interface{}{
-			"phone_number": phone[len(phone)-10:], // last 10 digits
-			"country_code": "+91",
-			"skip_send":    true,
-		}
-		
-		reqJSON, _ := json.Marshal(reqData)
-		req, _ := http.NewRequest("POST", backendURL, bytes.NewBuffer(reqJSON))
-		req.Header.Set("Content-Type", "application/json")
-		
-		resp, err := a.HTTPClient.Do(req)
-		if err != nil {
-			a.Log.Error("Failed to call JMJ backend for login initiation", "error", err)
-		} else {
-			defer resp.Body.Close()
-			if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
-				var result map[string]interface{}
-				if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
-					loginURL, _ := result["login_url"].(string)
-					if loginURL != "" {
-						reply := fmt.Sprintf("Click the link below to login to Jai Mataji Jewellers:\n\n%s\n\nThis link will expire in 5 minutes.", loginURL)
-						if err := a.sendAndSaveTextMessage(account, contact, reply); err != nil {
-							a.Log.Error("Failed to send login link reply", "error", err)
-						}
-						a.logSessionMessage(session.ID, models.DirectionOutgoing, reply, "whatsapp_login_bridge")
-						return // Stop further processing for this message
-					}
-				}
-			} else {
-				a.Log.Error("Backend returned error for login initiation", "status", resp.Status)
-			}
-		}
-	}
-	// --- End WhatsApp Login Bridge Logic ---
 
 	// Check for transfer keyword BEFORE sending greeting (transfer takes priority)
 	keywordResponse, keywordMatched := a.matchKeywordRules(account.OrganizationID, account.Name, messageText)
