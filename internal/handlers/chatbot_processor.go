@@ -286,9 +286,9 @@ func (a *App) processIncomingMessageFull(phoneNumberID string, msg IncomingTextM
 	if strings.Contains(cleanMsg, "help me login to jai mataji jewellers") {
 		a.Log.Info("Intercepted WhatsApp login request", "from", msg.From, "original_text", messageText)
 		
-		// Use the Docker service name (jmj-backend:7777) for internal communication
+		// Use the definitive internal Docker IP (10.0.1.3:7777) for cross-container communication
 		client := &http.Client{Timeout: 15 * time.Second}
-		backendURL := "http://jmj-backend:7777/api/v1/whatsapp-support/auth/initiate/"
+		backendURL := "http://10.0.1.3:7777/api/v1/whatsapp-support/auth/initiate/"
 		
 		// Prepare request body
 		phone := strings.TrimPrefix(msg.From, "+")
